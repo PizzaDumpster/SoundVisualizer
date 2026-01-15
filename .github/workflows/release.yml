@@ -36,15 +36,14 @@ jobs:
           --output ./Release
           --runtime win-x64
           --self-contained false
-          --no-build
 
       - name: Create ZIP archive
         run: >
-          Compress-Archive -Path ./Release
-          -DestinationPath ./SoundVisualizer-win-x64.zip
+          Compress-Archive -Path ./Release/*
+          -DestinationPath ./SoundVisualizer-win-x64.zip -Force
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ./SoundVisualizer-win-x64.zip
