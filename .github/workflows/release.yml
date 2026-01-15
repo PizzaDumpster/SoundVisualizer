@@ -1,0 +1,61 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore SoundVisualizer.sln
+
+      - name: Build
+        run: >
+          dotnet build SoundVisualizer.sln
+          --configuration Release --no-restore
+
+      - name: Publish
+        run: >
+          dotnet publish SoundVisualizer/SoundVisualizer.csproj
+          --configuration Release
+          --output ./Release
+          --runtime win-x64
+          --self-contained false
+
+      - name: Create ZIP archive
+        run: >
+          Compress-Archive -Path ./Release/*
+          -DestinationPath ./SoundVisualizer-win-x64.zip -Force
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          files: |
+            ./SoundVisualizer-win-x64.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
