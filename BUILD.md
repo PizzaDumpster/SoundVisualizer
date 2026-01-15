@@ -26,6 +26,34 @@ The complete release package will be in the `Release/` directory and will includ
 - NAudio dependencies (NAudio.*.dll)
 - Required runtime configuration files
 
+## Automated Releases
+
+The repository includes a GitHub Actions workflow that automatically creates releases when version tags are pushed.
+
+### Creating a Release
+
+1. Tag your commit with a version number:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. The GitHub Actions workflow will automatically:
+   - Build the application in Release configuration
+   - Publish the Windows executable with dependencies
+   - Create a ZIP archive of the release
+   - Create a GitHub release with auto-generated release notes
+   - Upload the ZIP file as a release asset
+
+3. The release will be available on the GitHub releases page with the filename:
+   `SoundVisualizer-win-x64.zip`
+
+### Version Tag Format
+Use semantic versioning with a `v` prefix:
+- `v1.0.0` - Major release
+- `v1.1.0` - Minor release
+- `v1.0.1` - Patch release
+
 ## Running the Application
 The application requires the .NET 8.0 Runtime to be installed on Windows.
 
@@ -37,3 +65,4 @@ SoundVisualizer.exe
 
 ## Note
 This is a Windows Forms application that targets `net8.0-windows` and requires Windows to run.
+
