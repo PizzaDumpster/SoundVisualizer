@@ -28,7 +28,7 @@ The complete release package will be in the `Release/` directory and will includ
 
 ## Automated Releases
 
-The repository includes a GitHub Actions workflow that automatically creates releases when version tags are pushed or when triggered manually.
+The repository includes a GitHub Actions workflow that creates releases when version tags are pushed or when triggered manually from the Actions tab.
 
 ### Creating a Release
 
@@ -55,8 +55,8 @@ The repository includes a GitHub Actions workflow that automatically creates rel
 4. Enter the tag name (e.g., `v1.0.0`) when prompted
 5. The workflow will build and create the release with the specified tag
 
-3. The release will be available on the GitHub releases page with the filename:
-   `SoundVisualizer-win-x64.zip`
+The release will be available on the GitHub releases page with the filename:
+`SoundVisualizer-win-x64.zip`
 
 ### Version Tag Format
 Use semantic versioning with a `v` prefix:
