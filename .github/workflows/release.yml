@@ -31,7 +31,7 @@ jobs:
 
       - name: Publish
         run: >
-          dotnet publish SoundVisualizer.sln
+          dotnet publish SoundVisualizer/SoundVisualizer.csproj
           --configuration Release
           --output ./Release
           --runtime win-x64
@@ -40,7 +40,7 @@ jobs:
 
       - name: Create ZIP archive
         run: >
-          Compress-Archive -Path ./Release/*
+          Compress-Archive -Path ./Release
           -DestinationPath ./SoundVisualizer-win-x64.zip
 
       - name: Create Release
