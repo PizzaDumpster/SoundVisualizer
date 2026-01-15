@@ -20,6 +20,7 @@ namespace SoundVisualizer
         private const int FftSize = 8192;
         private const int PeakHoldFrames = 20; // Hold peak for ~20 frames
         private const float PeakFallSpeed = 0.01f;
+        private float maxAmplitude = 0.01f; // Track maximum amplitude for auto-scaling
         private MMDeviceEnumerator? deviceEnumerator;
         private bool isFullScreen = false;
         private FormWindowState previousWindowState;
@@ -292,10 +293,33 @@ namespace SoundVisualizer
             int barWidth = this.ClientSize.Width / BarCount;
             int maxHeight = this.ClientSize.Height - 40;
 
+            // Find current maximum value for auto-scaling
+            float currentMax = 0;
+            for (int i = 0; i < BarCount; i++)
+            {
+                if (spectrumData[i] > currentMax)
+                    currentMax = spectrumData[i];
+            }
+
+            // Smoothly adjust maxAmplitude (with slow decay to allow full height usage)
+            if (currentMax > maxAmplitude)
+            {
+                maxAmplitude = currentMax;
+            }
+            else
+            {
+                // Slow decay: let it drop down gradually to match current levels
+                maxAmplitude = maxAmplitude * 0.995f + currentMax * 0.005f;
+            }
+
+            // Prevent division by zero
+            if (maxAmplitude < 0.001f) maxAmplitude = 0.001f;
+
             for (int i = 0; i < BarCount; i++)
             {
                 float value = spectrumData[i];
-                float normalizedValue = Math.Min(value * 200, 1.0f); // Increased amplification
+                // Normalize based on current maximum, using ~90% of available height
+                float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
                 int barHeight = Math.Max(2, (int)(normalizedValue * maxHeight));
 
                 int x = i * barWidth;
@@ -322,7 +346,7 @@ namespace SoundVisualizer
 
                 // Draw peak line
                 float peakValue = peakData[i];
-                float normalizedPeak = Math.Min(peakValue * 200, 1.0f);
+                float normalizedPeak = Math.Min((peakValue / maxAmplitude) * 0.9f, 1.0f);
                 int peakHeight = (int)(normalizedPeak * maxHeight);
                 if (peakHeight > 2)
                 {
