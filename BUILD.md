@@ -28,9 +28,11 @@ The complete release package will be in the `Release/` directory and will includ
 
 ## Automated Releases
 
-The repository includes a GitHub Actions workflow that automatically creates releases when version tags are pushed.
+The repository includes a GitHub Actions workflow that automatically creates releases when version tags are pushed or when triggered manually.
 
 ### Creating a Release
+
+#### Option 1: Using Git Tags (Automatic)
 
 1. Tag your commit with a version number:
    ```bash
@@ -44,6 +46,14 @@ The repository includes a GitHub Actions workflow that automatically creates rel
    - Create a ZIP archive of the release
    - Create a GitHub release with auto-generated release notes
    - Upload the ZIP file as a release asset
+
+#### Option 2: Manual Trigger
+
+1. Go to the "Actions" tab in the GitHub repository
+2. Select the "Create Release" workflow
+3. Click "Run workflow"
+4. Enter the tag name (e.g., `v1.0.0`) when prompted
+5. The workflow will build and create the release with the specified tag
 
 3. The release will be available on the GitHub releases page with the filename:
    `SoundVisualizer-win-x64.zip`
