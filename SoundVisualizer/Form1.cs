@@ -12,7 +12,7 @@ namespace SoundVisualizer
         private float[] fftBuffer = new float[8192];
         private NAudio.Dsp.Complex[] fftComplex = new NAudio.Dsp.Complex[4096];
         private float[] spectrumData = new float[64];
-        private float[] peakData = new float[64];
+        private float[] peakData = new float[64]; // Stores normalized peak values (0-1)
         private int[] peakHoldTime = new int[64];
         private float[] waveformData = new float[2048];
         private int waveformIndex = 0;
@@ -258,21 +258,6 @@ namespace SoundVisualizer
                     float average = sum / count;
                     // Smooth transition and amplify
                     spectrumData[i] = spectrumData[i] * 0.7f + average * 0.3f;
-                    
-                    // Update peak
-                    if (spectrumData[i] > peakData[i])
-                    {
-                        peakData[i] = spectrumData[i];
-                        peakHoldTime[i] = PeakHoldFrames;
-                    }
-                    else if (peakHoldTime[i] > 0)
-                    {
-                        peakHoldTime[i]--;
-                    }
-                    else
-                    {
-                        peakData[i] = Math.Max(0, peakData[i] - PeakFallSpeed);
-                    }
                 }
             }
         }
@@ -344,16 +329,30 @@ namespace SoundVisualizer
                     }
                 }
 
-                // Draw peak line
-                float peakValue = peakData[i];
-                float normalizedPeak = Math.Min((peakValue / maxAmplitude) * 0.9f, 1.0f);
-                int peakHeight = (int)(normalizedPeak * maxHeight);
+                // Update peak if current bar is higher
+                if (normalizedValue > peakData[i])
+                {
+                    peakData[i] = normalizedValue;
+                    peakHoldTime[i] = PeakHoldFrames;
+                }
+                else if (peakHoldTime[i] > 0)
+                {
+                    peakHoldTime[i]--;
+                }
+                else
+                {
+                    // Gradually decay the peak
+                    peakData[i] = Math.Max(0, peakData[i] - PeakFallSpeed);
+                }
+
+                // Draw peak line (peakData is already normalized)
+                int peakHeight = (int)(peakData[i] * maxHeight);
                 if (peakHeight > 2)
                 {
                     int peakY = this.ClientSize.Height - peakHeight - 20;
                     
                     // Peak line with fade effect based on hold time
-                    float fadeAlpha = peakHoldTime[i] > 0 ? 255 : Math.Max(100, 255 * (peakData[i] / (value + 0.001f)));
+                    float fadeAlpha = peakHoldTime[i] > 0 ? 255 : Math.Max(100, 255 * (peakData[i] / (normalizedValue + 0.001f)));
                     fadeAlpha = Math.Min(255, Math.Max(0, fadeAlpha)); // Clamp to 0-255
                     Color peakColor = Color.FromArgb((int)fadeAlpha, Color.Cyan);
                     
