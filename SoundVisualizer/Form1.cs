@@ -28,6 +28,7 @@ namespace SoundVisualizer
         private Rectangle previousBounds;
         private float backgroundOffset = 0;
         private ColorPalette currentPalette = ColorPalette.Classic;
+        private VisualizationMode currentMode = VisualizationMode.Bars;
 
         public Form1()
         {
@@ -45,6 +46,15 @@ namespace SoundVisualizer
             Sunset,
             Matrix,
             Monochrome
+        }
+
+        private enum VisualizationMode
+        {
+            Bars,
+            Line,
+            LineSmooth,
+            FilledLine,
+            FilledLineSmooth
         }
 
         private void InitializeVisualizer()
@@ -104,6 +114,10 @@ namespace SoundVisualizer
             // Load color palettes
             paletteComboBox.Items.AddRange(Enum.GetNames(typeof(ColorPalette)));
             paletteComboBox.SelectedIndex = 0;
+
+            // Load visualization modes
+            modeComboBox.Items.AddRange(Enum.GetNames(typeof(VisualizationMode)));
+            modeComboBox.SelectedIndex = 0;
         }
 
         private void paletteComboBox_SelectedIndexChanged(object? sender, EventArgs e)
@@ -111,6 +125,14 @@ namespace SoundVisualizer
             if (paletteComboBox.SelectedItem is string paletteName)
             {
                 currentPalette = (ColorPalette)Enum.Parse(typeof(ColorPalette), paletteName);
+            }
+        }
+
+        private void modeComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (modeComboBox.SelectedItem is string modeName)
+            {
+                currentMode = (VisualizationMode)Enum.Parse(typeof(VisualizationMode), modeName);
             }
         }
 
@@ -191,6 +213,7 @@ namespace SoundVisualizer
                 this.TopMost = true;
                 deviceComboBox.Visible = false;
                 paletteComboBox.Visible = false;
+                modeComboBox.Visible = false;
                 isFullScreen = true;
             }
             else
@@ -202,6 +225,7 @@ namespace SoundVisualizer
                 this.Bounds = previousBounds;
                 deviceComboBox.Visible = true;
                 paletteComboBox.Visible = true;
+                modeComboBox.Visible = true;
                 isFullScreen = false;
             }
         }
@@ -285,6 +309,21 @@ namespace SoundVisualizer
                     float average = sum / count;
                     // Smooth transition and amplify
                     spectrumData[i] = spectrumData[i] * 0.7f + average * 0.3f;
+                    
+                    // Update peak
+                    if (spectrumData[i] > peakData[i])
+                    {
+                        peakData[i] = spectrumData[i];
+                        peakHoldTime[i] = PeakHoldFrames;
+                    }
+                    else if (peakHoldTime[i] > 0)
+                    {
+                        peakHoldTime[i]--;
+                    }
+                    else
+                    {
+                        peakData[i] = Math.Max(0, peakData[i] - PeakFallSpeed);
+                    }
                 }
             }
         }
@@ -327,6 +366,50 @@ namespace SoundVisualizer
             // Prevent division by zero
             if (maxAmplitude < 0.001f) maxAmplitude = 0.001f;
 
+            // Draw spectrum based on current mode
+            switch (currentMode)
+            {
+                case VisualizationMode.Bars:
+                    DrawBars(g, barWidth, maxHeight);
+                    break;
+                case VisualizationMode.Line:
+                    DrawLine(g, barWidth, maxHeight, false, false);
+                    break;
+                case VisualizationMode.LineSmooth:
+                    DrawLine(g, barWidth, maxHeight, false, true);
+                    break;
+                case VisualizationMode.FilledLine:
+                    DrawLine(g, barWidth, maxHeight, true, false);
+                    break;
+                case VisualizationMode.FilledLineSmooth:
+                    DrawLine(g, barWidth, maxHeight, true, true);
+                    break;
+            }
+
+            // Draw title
+            using (Font font = new Font("Arial", 14, FontStyle.Bold))
+            using (SolidBrush brush = new SolidBrush(Color.Lime))
+            {
+                string deviceName = deviceComboBox.SelectedItem is AudioDeviceItem item ? item.Name : "No Device";
+                string paletteName = currentPalette.ToString();
+                string modeName = currentMode.ToString();
+                int titleY = isFullScreen ? 10 : 45;
+                g.DrawString($"Spectrum Analyzer - {deviceName} | {paletteName} | {modeName}", font, brush, 10, titleY);
+            }
+
+            // Show fullscreen hint
+            if (!isFullScreen)
+            {
+                using (Font font = new Font("Arial", 9))
+                using (SolidBrush brush = new SolidBrush(Color.Gray))
+                {
+                    g.DrawString("Press F11 or double-click for fullscreen", font, brush, 10, this.ClientSize.Height - 25);
+                }
+            }
+        }
+
+        private void DrawBars(Graphics g, int barWidth, int maxHeight)
+        {
             for (int i = 0; i < BarCount; i++)
             {
                 float value = spectrumData[i];
@@ -354,31 +437,23 @@ namespace SoundVisualizer
                     }
                 }
 
-                // Update peak if current bar is higher
-                if (normalizedValue > peakData[i])
+                // Draw peak line
+                float normalizedPeak = Math.Min((peakData[i] / maxAmplitude) * 0.9f, 1.0f);
+                int peakHeight = (int)(normalizedPeak * maxHeight);
+                
+                // Ensure peak doesn't rise above current bar
+                if (peakHeight > barHeight)
                 {
-                    peakData[i] = normalizedValue;
-                    peakHoldTime[i] = PeakHoldFrames;
+                    peakHeight = barHeight;
                 }
-                else if (peakHoldTime[i] > 0)
-                {
-                    peakHoldTime[i]--;
-                }
-                else
-                {
-                    // Gradually decay the peak
-                    peakData[i] = Math.Max(0, peakData[i] - PeakFallSpeed);
-                }
-
-                // Draw peak line (peakData is already normalized)
-                int peakHeight = (int)(peakData[i] * maxHeight);
+                
                 if (peakHeight > 2)
                 {
                     int peakY = this.ClientSize.Height - peakHeight - 20;
                     
                     // Peak line with fade effect based on hold time
-                    float fadeAlpha = peakHoldTime[i] > 0 ? 255 : Math.Max(100, 255 * (peakData[i] / (normalizedValue + 0.001f)));
-                    fadeAlpha = Math.Min(255, Math.Max(0, fadeAlpha)); // Clamp to 0-255
+                    float fadeAlpha = peakHoldTime[i] > 0 ? 255 : Math.Max(100, 255 * (peakData[i] / (value + 0.001f)));
+                    fadeAlpha = Math.Min(255, Math.Max(0, fadeAlpha));
                     Color peakColor = Color.FromArgb((int)fadeAlpha, Color.Cyan);
                     
                     using (Pen peakPen = new Pen(peakColor, 2))
@@ -387,24 +462,125 @@ namespace SoundVisualizer
                     }
                 }
             }
+        }
 
-            // Draw title
-            using (Font font = new Font("Arial", 14, FontStyle.Bold))
-            using (SolidBrush brush = new SolidBrush(Color.Lime))
+        private void DrawLine(Graphics g, int barWidth, int maxHeight, bool filled, bool smooth)
+        {
+            // Build the spectrum points
+            List<PointF> points = new List<PointF>();
+            
+            for (int i = 0; i < BarCount; i++)
             {
-                string deviceName = deviceComboBox.SelectedItem is AudioDeviceItem item ? item.Name : "No Device";
-                string paletteName = currentPalette.ToString();
-                int titleY = isFullScreen ? 10 : 45;
-                g.DrawString($"Spectrum Analyzer - {deviceName} | Palette: {paletteName}", font, brush, 10, titleY);
+                float value = spectrumData[i];
+                float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
+                int height = Math.Max(2, (int)(normalizedValue * maxHeight));
+                
+                int x = i * barWidth + barWidth / 2;
+                int y = this.ClientSize.Height - height - 20;
+                
+                points.Add(new PointF(x, y));
             }
 
-            // Show fullscreen hint
-            if (!isFullScreen)
+            if (points.Count > 1)
             {
-                using (Font font = new Font("Arial", 9))
-                using (SolidBrush brush = new SolidBrush(Color.Gray))
+                // Draw filled area if requested
+                if (filled)
                 {
-                    g.DrawString("Press F11 or double-click for fullscreen", font, brush, 10, this.ClientSize.Height - 25);
+                    using (System.Drawing.Drawing2D.GraphicsPath fillPath = new System.Drawing.Drawing2D.GraphicsPath())
+                    {
+                        if (smooth && points.Count >= 3)
+                        {
+                            // Use cardinal spline for smooth curves
+                            fillPath.AddCurve(points.ToArray(), 0.5f);
+                        }
+                        else
+                        {
+                            // Use straight lines
+                            fillPath.AddLines(points.ToArray());
+                        }
+                        
+                        // Close the path to the bottom
+                        fillPath.AddLine(points[points.Count - 1], new PointF(points[points.Count - 1].X, this.ClientSize.Height - 20));
+                        fillPath.AddLine(new PointF(points[points.Count - 1].X, this.ClientSize.Height - 20), new PointF(points[0].X, this.ClientSize.Height - 20));
+                        fillPath.CloseFigure();
+                        
+                        // Create gradient fill
+                        using (System.Drawing.Drawing2D.LinearGradientBrush gradBrush = 
+                            new System.Drawing.Drawing2D.LinearGradientBrush(
+                                new Point(0, 0),
+                                new Point(0, this.ClientSize.Height),
+                                GetPaletteColor(0.8f, BarCount / 2, BarCount),
+                                Color.FromArgb(30, GetPaletteColor(0.2f, BarCount / 2, BarCount))))
+                        {
+                            g.FillPath(gradBrush, fillPath);
+                        }
+                    }
+                }
+
+                // Draw the main line
+                if (smooth && points.Count >= 3)
+                {
+                    // Draw smooth curve with glow effect
+                    for (int i = 0; i < points.Count - 1; i++)
+                    {
+                        float value = spectrumData[i];
+                        float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
+                        Color glowColor = Color.FromArgb(60, GetPaletteColor(normalizedValue, i, BarCount));
+                        
+                        using (Pen glowPen = new Pen(glowColor, 8))
+                        {
+                            glowPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                            glowPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                            g.DrawCurve(glowPen, points.ToArray(), i, 1, 0.5f);
+                        }
+                    }
+                    
+                    // Draw main smooth line in segments for color variation
+                    for (int i = 0; i < points.Count - 1; i++)
+                    {
+                        float value = spectrumData[i];
+                        float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
+                        Color lineColor = GetPaletteColor(normalizedValue, i, BarCount);
+                        
+                        using (Pen linePen = new Pen(lineColor, 3))
+                        {
+                            linePen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                            linePen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                            g.DrawCurve(linePen, points.ToArray(), i, 1, 0.5f);
+                        }
+                    }
+                }
+                else
+                {
+                    // Draw straight lines with varying colors
+                    for (int i = 0; i < points.Count - 1; i++)
+                    {
+                        float value = spectrumData[i];
+                        float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
+                        Color lineColor = GetPaletteColor(normalizedValue, i, BarCount);
+                        
+                        using (Pen linePen = new Pen(lineColor, 3))
+                        {
+                            linePen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                            linePen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                            g.DrawLine(linePen, points[i], points[i + 1]);
+                        }
+                    }
+
+                    // Draw glow effect
+                    for (int i = 0; i < points.Count - 1; i++)
+                    {
+                        float value = spectrumData[i];
+                        float normalizedValue = Math.Min((value / maxAmplitude) * 0.9f, 1.0f);
+                        Color glowColor = Color.FromArgb(60, GetPaletteColor(normalizedValue, i, BarCount));
+                        
+                        using (Pen glowPen = new Pen(glowColor, 8))
+                        {
+                            glowPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                            glowPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                            g.DrawLine(glowPen, points[i], points[i + 1]);
+                        }
+                    }
                 }
             }
         }
@@ -518,40 +694,40 @@ namespace SoundVisualizer
             {
                 case ColorPalette.Classic:
                     // Green to red gradient
-                    int red = (int)(255 * normalizedValue);
-                    int green = (int)(255 * (1 - normalizedValue));
+                    int red = Math.Min(255, (int)(255 * normalizedValue));
+                    int green = Math.Min(255, (int)(255 * (1 - normalizedValue)));
                     return Color.FromArgb(red, green, 0);
 
                 case ColorPalette.Ocean:
                     // Blue to cyan to white
-                    int blue = (int)(255 * (1 - normalizedValue * 0.5f));
-                    int oceanGreen = (int)(255 * normalizedValue);
-                    int oceanRed = (int)(255 * Math.Max(0, normalizedValue - 0.7f) * 3.3f);
+                    int blue = Math.Min(255, (int)(255 * (1 - normalizedValue * 0.5f)));
+                    int oceanGreen = Math.Min(255, (int)(255 * normalizedValue));
+                    int oceanRed = Math.Min(255, (int)(255 * Math.Max(0, normalizedValue - 0.7f) * 3.3f));
                     return Color.FromArgb(oceanRed, oceanGreen, blue);
 
                 case ColorPalette.Fire:
                     // Dark red to orange to yellow to white
                     if (normalizedValue < 0.33f)
                     {
-                        int fireRed = (int)(255 * (0.5f + normalizedValue * 1.5f));
+                        int fireRed = Math.Min(255, (int)(255 * (0.5f + normalizedValue * 1.5f)));
                         return Color.FromArgb(fireRed, 0, 0);
                     }
                     else if (normalizedValue < 0.66f)
                     {
-                        int fireGreen = (int)(255 * (normalizedValue - 0.33f) * 3);
+                        int fireGreen = Math.Min(255, (int)(255 * (normalizedValue - 0.33f) * 3));
                         return Color.FromArgb(255, fireGreen, 0);
                     }
                     else
                     {
-                        int fireBlue = (int)(255 * (normalizedValue - 0.66f) * 3);
+                        int fireBlue = Math.Min(255, (int)(255 * (normalizedValue - 0.66f) * 3));
                         return Color.FromArgb(255, 255, fireBlue);
                     }
 
                 case ColorPalette.Purple:
                     // Dark purple to bright purple to pink
-                    int purpleRed = (int)(200 + 55 * normalizedValue);
-                    int purpleGreen = (int)(50 * normalizedValue);
-                    int purpleBlue = (int)(200 + 55 * (1 - normalizedValue * 0.5f));
+                    int purpleRed = Math.Min(255, (int)(200 + 55 * normalizedValue));
+                    int purpleGreen = Math.Min(255, (int)(50 * normalizedValue));
+                    int purpleBlue = Math.Min(255, (int)(200 + 55 * (1 - normalizedValue * 0.5f)));
                     return Color.FromArgb(purpleRed, purpleGreen, purpleBlue);
 
                 case ColorPalette.Neon:
@@ -563,26 +739,26 @@ namespace SoundVisualizer
                     // Orange to pink to purple
                     if (normalizedValue < 0.5f)
                     {
-                        int sunsetGreen = (int)(100 + 155 * normalizedValue * 2);
+                        int sunsetGreen = Math.Min(255, (int)(100 + 155 * normalizedValue * 2));
                         return Color.FromArgb(255, sunsetGreen, 0);
                     }
                     else
                     {
                         int sunsetRed = 255;
-                        int sunsetGreen = (int)(255 * (1 - (normalizedValue - 0.5f) * 2));
-                        int sunsetBlue = (int)(200 * (normalizedValue - 0.5f) * 2);
+                        int sunsetGreen = Math.Min(255, (int)(255 * (1 - (normalizedValue - 0.5f) * 2)));
+                        int sunsetBlue = Math.Min(255, (int)(200 * (normalizedValue - 0.5f) * 2));
                         return Color.FromArgb(sunsetRed, sunsetGreen, sunsetBlue);
                     }
 
                 case ColorPalette.Matrix:
                     // Black to dark green to bright green
-                    int matrixGreen = (int)(255 * normalizedValue);
-                    int matrixRed = (int)(50 * normalizedValue);
+                    int matrixGreen = Math.Min(255, (int)(255 * normalizedValue));
+                    int matrixRed = Math.Min(255, (int)(50 * normalizedValue));
                     return Color.FromArgb(matrixRed, matrixGreen, 0);
 
                 case ColorPalette.Monochrome:
                     // Black to white
-                    int mono = (int)(255 * normalizedValue);
+                    int mono = Math.Min(255, (int)(255 * normalizedValue));
                     return Color.FromArgb(mono, mono, mono);
 
                 default:
