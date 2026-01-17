@@ -27,11 +27,24 @@ namespace SoundVisualizer
         private FormBorderStyle previousBorderStyle;
         private Rectangle previousBounds;
         private float backgroundOffset = 0;
+        private ColorPalette currentPalette = ColorPalette.Classic;
 
         public Form1()
         {
             InitializeComponent();
             InitializeVisualizer();
+        }
+
+        private enum ColorPalette
+        {
+            Classic,
+            Ocean,
+            Fire,
+            Purple,
+            Neon,
+            Sunset,
+            Matrix,
+            Monochrome
         }
 
         private void InitializeVisualizer()
@@ -86,6 +99,18 @@ namespace SoundVisualizer
             if (deviceComboBox.Items.Count > 0)
             {
                 deviceComboBox.SelectedIndex = 0;
+            }
+
+            // Load color palettes
+            paletteComboBox.Items.AddRange(Enum.GetNames(typeof(ColorPalette)));
+            paletteComboBox.SelectedIndex = 0;
+        }
+
+        private void paletteComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (paletteComboBox.SelectedItem is string paletteName)
+            {
+                currentPalette = (ColorPalette)Enum.Parse(typeof(ColorPalette), paletteName);
             }
         }
 
@@ -165,6 +190,7 @@ namespace SoundVisualizer
                 this.Bounds = Screen.FromControl(this).Bounds;
                 this.TopMost = true;
                 deviceComboBox.Visible = false;
+                paletteComboBox.Visible = false;
                 isFullScreen = true;
             }
             else
@@ -175,6 +201,7 @@ namespace SoundVisualizer
                 this.WindowState = previousWindowState;
                 this.Bounds = previousBounds;
                 deviceComboBox.Visible = true;
+                paletteComboBox.Visible = true;
                 isFullScreen = false;
             }
         }
@@ -325,10 +352,8 @@ namespace SoundVisualizer
                 int x = i * barWidth;
                 int y = this.ClientSize.Height - barHeight - 20;
 
-                // Color gradient from green to red based on height
-                int red = (int)(255 * normalizedValue);
-                int green = (int)(255 * (1 - normalizedValue));
-                Color barColor = Color.FromArgb(red, green, 0);
+                // Get color based on selected palette
+                Color barColor = GetPaletteColor(normalizedValue, i, BarCount);
 
                 using (SolidBrush brush = new SolidBrush(barColor))
                 {
@@ -369,8 +394,9 @@ namespace SoundVisualizer
             using (SolidBrush brush = new SolidBrush(Color.Lime))
             {
                 string deviceName = deviceComboBox.SelectedItem is AudioDeviceItem item ? item.Name : "No Device";
+                string paletteName = currentPalette.ToString();
                 int titleY = isFullScreen ? 10 : 45;
-                g.DrawString($"Spectrum Analyzer - {deviceName}", font, brush, 10, titleY);
+                g.DrawString($"Spectrum Analyzer - {deviceName} | Palette: {paletteName}", font, brush, 10, titleY);
             }
 
             // Show fullscreen hint
@@ -433,12 +459,15 @@ namespace SoundVisualizer
             backgroundOffset += 0.5f;
             if (backgroundOffset > 360) backgroundOffset = 0;
 
-            // Create gradient from dark blue to dark purple
+            // Get background colors based on palette
+            (Color bgColor1, Color bgColor2) = GetBackgroundColors();
+
+            // Create gradient
             using (System.Drawing.Drawing2D.LinearGradientBrush brush = 
                 new System.Drawing.Drawing2D.LinearGradientBrush(
                     this.ClientRectangle,
-                    Color.FromArgb(10, 10, 30),
-                    Color.FromArgb(20, 10, 40),
+                    bgColor1,
+                    bgColor2,
                     45f + (float)Math.Sin(backgroundOffset * Math.PI / 180) * 15))
             {
                 g.FillRectangle(brush, this.ClientRectangle);
@@ -475,11 +504,162 @@ namespace SoundVisualizer
                 using (System.Drawing.Drawing2D.PathGradientBrush gradBrush = 
                     new System.Drawing.Drawing2D.PathGradientBrush(path))
                 {
-                    gradBrush.CenterColor = Color.FromArgb(30, 50, 100, 150);
+                    Color glowColor = GetCenterGlowColor();
+                    gradBrush.CenterColor = glowColor;
                     gradBrush.SurroundColors = new[] { Color.FromArgb(0, 0, 0, 0) };
                     gradBrush.FocusScales = new System.Drawing.PointF(0.3f, 0.3f);
                     g.FillPath(gradBrush, path);
                 }
+            }
+        }
+
+        private Color GetPaletteColor(float normalizedValue, int barIndex, int totalBars)
+        {
+            switch (currentPalette)
+            {
+                case ColorPalette.Classic:
+                    // Green to red gradient
+                    int red = (int)(255 * normalizedValue);
+                    int green = (int)(255 * (1 - normalizedValue));
+                    return Color.FromArgb(red, green, 0);
+
+                case ColorPalette.Ocean:
+                    // Blue to cyan to white
+                    int blue = (int)(255 * (1 - normalizedValue * 0.5f));
+                    int oceanGreen = (int)(255 * normalizedValue);
+                    int oceanRed = (int)(255 * Math.Max(0, normalizedValue - 0.7f) * 3.3f);
+                    return Color.FromArgb(oceanRed, oceanGreen, blue);
+
+                case ColorPalette.Fire:
+                    // Dark red to orange to yellow to white
+                    if (normalizedValue < 0.33f)
+                    {
+                        int fireRed = (int)(255 * (0.5f + normalizedValue * 1.5f));
+                        return Color.FromArgb(fireRed, 0, 0);
+                    }
+                    else if (normalizedValue < 0.66f)
+                    {
+                        int fireGreen = (int)(255 * (normalizedValue - 0.33f) * 3);
+                        return Color.FromArgb(255, fireGreen, 0);
+                    }
+                    else
+                    {
+                        int fireBlue = (int)(255 * (normalizedValue - 0.66f) * 3);
+                        return Color.FromArgb(255, 255, fireBlue);
+                    }
+
+                case ColorPalette.Purple:
+                    // Dark purple to bright purple to pink
+                    int purpleRed = (int)(200 + 55 * normalizedValue);
+                    int purpleGreen = (int)(50 * normalizedValue);
+                    int purpleBlue = (int)(200 + 55 * (1 - normalizedValue * 0.5f));
+                    return Color.FromArgb(purpleRed, purpleGreen, purpleBlue);
+
+                case ColorPalette.Neon:
+                    // Rainbow cycling through bars
+                    float hue = ((float)barIndex / totalBars + normalizedValue * 0.3f) % 1.0f;
+                    return ColorFromHSV(hue * 360, 1.0f, 0.5f + normalizedValue * 0.5f);
+
+                case ColorPalette.Sunset:
+                    // Orange to pink to purple
+                    if (normalizedValue < 0.5f)
+                    {
+                        int sunsetGreen = (int)(100 + 155 * normalizedValue * 2);
+                        return Color.FromArgb(255, sunsetGreen, 0);
+                    }
+                    else
+                    {
+                        int sunsetRed = 255;
+                        int sunsetGreen = (int)(255 * (1 - (normalizedValue - 0.5f) * 2));
+                        int sunsetBlue = (int)(200 * (normalizedValue - 0.5f) * 2);
+                        return Color.FromArgb(sunsetRed, sunsetGreen, sunsetBlue);
+                    }
+
+                case ColorPalette.Matrix:
+                    // Black to dark green to bright green
+                    int matrixGreen = (int)(255 * normalizedValue);
+                    int matrixRed = (int)(50 * normalizedValue);
+                    return Color.FromArgb(matrixRed, matrixGreen, 0);
+
+                case ColorPalette.Monochrome:
+                    // Black to white
+                    int mono = (int)(255 * normalizedValue);
+                    return Color.FromArgb(mono, mono, mono);
+
+                default:
+                    return Color.Lime;
+            }
+        }
+
+        private (Color, Color) GetBackgroundColors()
+        {
+            switch (currentPalette)
+            {
+                case ColorPalette.Classic:
+                    return (Color.FromArgb(10, 10, 30), Color.FromArgb(20, 10, 40));
+                case ColorPalette.Ocean:
+                    return (Color.FromArgb(5, 10, 30), Color.FromArgb(10, 20, 50));
+                case ColorPalette.Fire:
+                    return (Color.FromArgb(20, 5, 5), Color.FromArgb(40, 10, 5));
+                case ColorPalette.Purple:
+                    return (Color.FromArgb(20, 5, 30), Color.FromArgb(30, 10, 50));
+                case ColorPalette.Neon:
+                    return (Color.FromArgb(10, 10, 10), Color.FromArgb(20, 20, 30));
+                case ColorPalette.Sunset:
+                    return (Color.FromArgb(30, 10, 10), Color.FromArgb(40, 15, 20));
+                case ColorPalette.Matrix:
+                    return (Color.FromArgb(0, 10, 0), Color.FromArgb(5, 20, 5));
+                case ColorPalette.Monochrome:
+                    return (Color.FromArgb(10, 10, 10), Color.FromArgb(20, 20, 20));
+                default:
+                    return (Color.FromArgb(10, 10, 30), Color.FromArgb(20, 10, 40));
+            }
+        }
+
+        private Color GetCenterGlowColor()
+        {
+            switch (currentPalette)
+            {
+                case ColorPalette.Classic:
+                    return Color.FromArgb(30, 50, 100, 150);
+                case ColorPalette.Ocean:
+                    return Color.FromArgb(30, 0, 150, 200);
+                case ColorPalette.Fire:
+                    return Color.FromArgb(30, 200, 50, 0);
+                case ColorPalette.Purple:
+                    return Color.FromArgb(30, 150, 50, 200);
+                case ColorPalette.Neon:
+                    return Color.FromArgb(30, 100, 100, 200);
+                case ColorPalette.Sunset:
+                    return Color.FromArgb(30, 200, 100, 50);
+                case ColorPalette.Matrix:
+                    return Color.FromArgb(30, 0, 150, 0);
+                case ColorPalette.Monochrome:
+                    return Color.FromArgb(30, 100, 100, 100);
+                default:
+                    return Color.FromArgb(30, 50, 100, 150);
+            }
+        }
+
+        private Color ColorFromHSV(float hue, float saturation, float value)
+        {
+            int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
+            float f = hue / 60 - (float)Math.Floor(hue / 60);
+
+            value = value * 255;
+            int v = Convert.ToInt32(value);
+            int p = Convert.ToInt32(value * (1 - saturation));
+            int q = Convert.ToInt32(value * (1 - f * saturation));
+            int t = Convert.ToInt32(value * (1 - (1 - f) * saturation));
+
+            switch (hi)
+            {
+                case 0: return Color.FromArgb(v, t, p);
+                case 1: return Color.FromArgb(q, v, p);
+                case 2: return Color.FromArgb(p, v, t);
+                case 3: return Color.FromArgb(p, q, v);
+                case 4: return Color.FromArgb(t, p, v);
+                default: return Color.FromArgb(v, p, q);
             }
         }
 

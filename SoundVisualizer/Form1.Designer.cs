@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.deviceComboBox = new System.Windows.Forms.ComboBox();
+            this.paletteComboBox = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
             // 
             // deviceComboBox
@@ -41,10 +42,21 @@
             this.deviceComboBox.TabIndex = 0;
             this.deviceComboBox.SelectedIndexChanged += new System.EventHandler(this.deviceComboBox_SelectedIndexChanged);
             // 
+            // paletteComboBox
+            // 
+            this.paletteComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.paletteComboBox.FormattingEnabled = true;
+            this.paletteComboBox.Location = new System.Drawing.Point(418, 12);
+            this.paletteComboBox.Name = "paletteComboBox";
+            this.paletteComboBox.Size = new System.Drawing.Size(200, 23);
+            this.paletteComboBox.TabIndex = 1;
+            this.paletteComboBox.SelectedIndexChanged += new System.EventHandler(this.paletteComboBox_SelectedIndexChanged);
+            // 
             // Form1
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.paletteComboBox);
             this.Controls.Add(this.deviceComboBox);
             this.Text = "Form1";
             this.ResumeLayout(false);
@@ -53,5 +65,6 @@
         #endregion
 
         private System.Windows.Forms.ComboBox deviceComboBox;
+        private System.Windows.Forms.ComboBox paletteComboBox;
     }
 }
